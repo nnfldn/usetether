@@ -1,0 +1,491 @@
+@import "tailwindcss";
+
+:root {
+  /* Canvas Background: Putih Bersih */
+  --background: #ffffff;
+  --foreground: #141b16;
+
+  /* Primary */
+  --md-primary: #006c3a;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #a2f2bf;
+  --md-on-primary-container: #00210e;
+
+  /* Surface Tiers: Card bernuansa abu-abu sage, input di dalamnya putih kontras */
+  --md-surface: #edf3ed;
+  --md-on-surface: #141b16;
+  --md-surface-container: #ffffff;
+  --md-surface-container-high: #dde8dd;
+  --md-surface-variant: #d3dfd3;
+  --md-on-surface-variant: #3e4840;
+
+  /* Text Roles */
+  --md-on-surface-muted: #6b776d;
+  --md-on-surface-body: #39433b;
+
+  /* Outline */
+  --md-outline: #88948a;
+  --md-outline-variant: #c0ccc1;
+
+  /* Error / Danger */
+  --md-error: #ba1a1a;
+  --md-on-error: #ffffff;
+  --md-error-container: #ffdad6;
+  --md-on-error-container: #410002;
+
+  /* Health Metrics */
+  --md-health-good: #16a34a;
+  --md-health-good-container: #dcfce7;
+  --md-health-warn: #ca8a04;
+  --md-health-warn-container: #fef9c3;
+  --md-health-risk: #ea580c;
+  --md-health-risk-container: #ffedd5;
+  --md-health-critical: #dc2626;
+  --md-health-critical-container: #fee2e2;
+
+  --md-health-good-text: #15803d;
+  --md-health-warn-text: #a16207;
+  --md-health-risk-text: #c2410c;
+  --md-health-critical-text: #b91c1c;
+
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  /* Canvas Background: Arang/Slate Brutalist */
+  --background: #172118;
+  --foreground: #e4ebe4;
+
+  /* Primary */
+  --md-primary: #8fd5af;
+  --md-on-primary: #082413;
+  --md-primary-container: #1b452d;
+  --md-on-primary-container: #c4ebd3;
+
+  /* Surface Tiers: Card lebih gelap/pekat, terukir kontras di atas kanvas */
+  --md-surface: #0c120e;
+  --md-on-surface: #e4ebe4;
+  --md-surface-container: #172118;
+  --md-surface-container-high: #243225;
+  --md-surface-variant: #324334;
+  --md-on-surface-variant: #b5c2b7;
+
+  /* Text Roles */
+  --md-on-surface-muted: #88958a;
+  --md-on-surface-body: #c7d2c8;
+
+  /* Outline */
+  --md-outline: #425244;
+  --md-outline-variant: #2d3b2f;
+
+  /* Error / Danger */
+  --md-error: #ffb4ab;
+  --md-on-error: #690005;
+  --md-error-container: #93000a;
+  --md-on-error-container: #ffdad6;
+
+  /* Health Metrics */
+  --md-health-good: #4ade80;
+  --md-health-good-container: #14532d;
+  --md-health-warn: #facc15;
+  --md-health-warn-container: #713f12;
+  --md-health-risk: #fb923c;
+  --md-health-risk-container: #5c2410;
+  --md-health-critical: #f87171;
+  --md-health-critical-container: #5c1414;
+
+  --md-health-good-text: #4ade80;
+  --md-health-warn-text: #facc15;
+  --md-health-risk-text: #fb923c;
+  --md-health-critical-text: #f87171;
+
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-manrope), sans-serif;
+  --font-mono: var(--font-roboto-mono), monospace;
+  --font-display: var(--font-barlow-condensed), sans-serif;
+}
+
+@theme {
+  --color-primary: var(--md-primary);
+  --color-on-primary: var(--md-on-primary);
+  --color-primary-container: var(--md-primary-container);
+  --color-on-primary-container: var(--md-on-primary-container);
+
+  --color-surface: var(--md-surface);
+  --color-on-surface: var(--md-on-surface);
+  --color-surface-container: var(--md-surface-container);
+  --color-surface-container-high: var(--md-surface-container-high);
+  --color-surface-variant: var(--md-surface-variant);
+  --color-on-surface-variant: var(--md-on-surface-variant);
+
+  --color-on-surface-muted: var(--md-on-surface-muted);
+  --color-on-surface-body: var(--md-on-surface-body);
+
+  --color-outline: var(--md-outline);
+  --color-outline-variant: var(--md-outline-variant);
+
+  --color-error: var(--md-error);
+  --color-on-error: var(--md-on-error);
+  --color-error-container: var(--md-error-container);
+  --color-on-error-container: var(--md-on-error-container);
+
+  --color-health-good: var(--md-health-good);
+  --color-health-good-container: var(--md-health-good-container);
+  --color-health-warn: var(--md-health-warn);
+  --color-health-warn-container: var(--md-health-warn-container);
+  --color-health-risk: var(--md-health-risk);
+  --color-health-risk-container: var(--md-health-risk-container);
+  --color-health-critical: var(--md-health-critical);
+  --color-health-critical-container: var(--md-health-critical-container);
+
+  --color-health-good-text: var(--md-health-good-text);
+  --color-health-warn-text: var(--md-health-warn-text);
+  --color-health-risk-text: var(--md-health-risk-text);
+  --color-health-critical-text: var(--md-health-critical-text);
+
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 6px;
+  --radius-lg: 16px;
+  --radius-xl: 28px;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+@layer base {
+  *,
+  ::after,
+  ::before {
+    border-color: var(--color-outline);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-barlow-condensed), sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* State layer MD3 */
+  .md-state {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .md-state::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: currentColor;
+    opacity: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+  }
+  .md-state:hover:not(:disabled)::after {
+    opacity: 0.08;
+  }
+  .md-state:focus-visible::after {
+    opacity: 0.1;
+  }
+  .md-state:active:not(:disabled)::after {
+    opacity: 0.1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .md-state::after {
+      transition: none;
+    }
+  }
+
+  /* --- Tombol Brutalist MD3 (Radius 8px, 2px offset clicky shadow, MD3 state layer) --- */
+  .md-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.5rem;
+    padding-inline: 1.25rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    box-shadow: 2px 2px 0 var(--color-outline);
+    font-family: var(--font-barlow-condensed), sans-serif;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    transition: transform 100ms ease, box-shadow 100ms ease, background-color 120ms ease, color 120ms ease;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    white-space: nowrap;
+  }
+  .md-btn::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background: currentColor;
+    opacity: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+  }
+  .md-btn:hover:not(:disabled)::after {
+    opacity: 0.08;
+  }
+  .md-btn:focus-visible::after {
+    opacity: 0.1;
+  }
+  .md-btn:active:not(:disabled) {
+    transform: translate(1px, 1px);
+    box-shadow: 1px 1px 0 var(--color-outline);
+  }
+  .md-btn:active:not(:disabled)::after {
+    opacity: 0.12;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .md-btn {
+      transition: none;
+    }
+    .md-btn::after {
+      transition: none;
+    }
+  }
+  .md-btn > * {
+    position: relative;
+    z-index: 1;
+  }
+  .md-btn:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+  .md-btn-filled {
+    background-color: var(--color-primary);
+    color: var(--color-on-primary);
+    border-color: var(--color-primary);
+  }
+  .md-btn-filled:hover:not(:disabled) {
+    background-image: linear-gradient(rgb(255 255 255 / 0.08), rgb(255 255 255 / 0.08));
+  }
+  .md-btn-outlined {
+    border-color: var(--color-outline);
+    background-color: transparent;
+    color: var(--color-on-surface);
+  }
+  .md-btn-outlined:hover:not(:disabled) {
+    background-color: var(--color-surface-container);
+  }
+  .md-btn-danger {
+    background-color: var(--color-error);
+    color: var(--color-on-error);
+    border-color: var(--color-error);
+  }
+  .md-btn-text {
+    background-color: transparent;
+    border-color: transparent;
+    color: var(--color-on-surface);
+    padding-inline: 0.75rem;
+    box-shadow: none;
+  }
+  .md-btn-text:active:not(:disabled) {
+    transform: none;
+  }
+  .md-btn-text:hover:not(:disabled) {
+    background-color: var(--color-surface-container);
+  }
+  .md-btn-sm {
+    min-height: 2rem;
+    padding-inline: 0.875rem;
+    font-size: 0.75rem;
+  }
+
+  /* --- Kartu Brutalist MD3 (Radius 6px, border outline, aksen border-left) --- */
+  .md-card {
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-outline);
+    background-color: var(--color-surface);
+  }
+  .md-card-accent {
+    border-left: 4px solid var(--color-primary);
+  }
+
+  /* --- Kolom Isian / Input / Textarea / Select --- */
+  .md-field {
+    width: 100%;
+    min-height: 2.75rem;
+    border-radius: var(--radius-xs);
+    border: 1px solid var(--color-outline);
+    background-color: var(--color-surface-container);
+    color: var(--color-on-surface);
+    padding: 0.625rem 0.875rem;
+    font-family: var(--font-manrope), sans-serif;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    box-shadow: inset 1px 1px 2px rgb(0 0 0 / 0.08);
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+  [data-theme="dark"] .md-field {
+    box-shadow: inset 1px 1px 2px rgb(0 0 0 / 0.35);
+  }
+  .md-field:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: inset 1px 1px 2px rgb(0 0 0 / 0.08), 0 0 0 1px var(--color-primary);
+  }
+  [data-theme="dark"] .md-field:focus {
+    box-shadow: inset 1px 1px 2px rgb(0 0 0 / 0.35), 0 0 0 1px var(--color-primary);
+  }
+  textarea.md-field {
+    min-height: 5.5rem;
+    resize: vertical;
+  }
+  select.md-field {
+    padding-right: 2.25rem;
+    cursor: pointer;
+  }
+  input[type="date"].md-field {
+    min-height: 2.75rem;
+    line-height: 1.5;
+  }
+
+  /* --- Eyebrow Label --- */
+  .eyebrow {
+    font-family: var(--font-roboto-mono), monospace;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-primary);
+  }
+
+  /* --- Wordmark Logo & User Avatar Dot --- */
+  .wordmark {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-barlow-condensed), sans-serif;
+    font-weight: 700;
+    font-size: 1.5rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-on-surface);
+  }
+  .wordmark-logo {
+    display: grid;
+    place-items: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 9999px;
+    background-color: var(--color-primary);
+    color: var(--color-on-primary);
+    font-family: var(--font-manrope), sans-serif;
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .user-dot {
+    display: grid;
+    place-items: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 9999px;
+    background-color: var(--color-primary-container);
+    color: var(--color-on-primary-container);
+    font-family: var(--font-roboto-mono), monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  /* --- Chips --- */
+  .md-chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.75rem;
+    padding-inline: 0.625rem;
+    border-radius: 9999px;
+    border: 1px solid var(--color-outline);
+    background-color: var(--color-surface-container-high);
+    color: var(--color-on-surface-variant);
+    font-family: var(--font-roboto-mono), monospace;
+    font-size: 0.6875rem;
+    font-weight: 500;
+  }
+
+  /* --- Project Grid --- */
+  .project-grid {
+    display: grid;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+    gap: 16px;
+  }
+  @media (min-width: 640px) {
+    .project-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 1024px) {
+    .project-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .project-item {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 240px;
+    padding: 1.25rem;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-outline);
+    border-radius: var(--radius-md);
+    transition: background-color 140ms ease;
+  }
+  .project-item:hover {
+    background-color: var(--color-surface-container);
+  }
+
+  .md-headline { font-size: 1.5rem; font-weight: 600; letter-spacing: 0; }
+  .md-title { font-size: 1rem; font-weight: 500; letter-spacing: 0.009em; }
+  .md-label { font-size: 0.75rem; font-weight: 500; letter-spacing: 0.03em; }
+}
+
+/* --- Container Tata Letak Halaman --- */
+.page {
+  max-width: 76rem;
+  margin-inline: auto;
+  padding: 2rem 1.5rem;
+}
+
+.page-narrow {
+  max-width: 52rem;
+  margin-inline: auto;
+  padding: 2rem 1.5rem;
+}
+
+@media (max-width: 640px) {
+  .page, .page-narrow {
+    padding: 1.25rem 1rem;
+  }
+}

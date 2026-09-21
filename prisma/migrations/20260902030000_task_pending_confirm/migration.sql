@@ -1,0 +1,3 @@
+-- AlterEnum
+ALTER TYPE "TaskStatus" ADD VALUE 'PENDING_CONFIRM';
+

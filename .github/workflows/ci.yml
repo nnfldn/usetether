@@ -1,0 +1,80 @@
+# CI Tether — jaring pengaman untuk kerja paralel 3 orang sampai 20 September.
+#
+# PRINSIP PENTING: workflow ini TIDAK memakai kredensial asli.
+# Semua env di bawah adalah nilai dummy. Build Next sudah diverifikasi lolos
+# dengan nilai-nilai ini (3 Sep 2026) karena tidak ada halaman yang menyentuh
+# database saat build — semua halaman berdata bersifat dinamis (ƒ).
+#
+# Jangan menambahkan DATABASE_URL atau SUPABASE_SECRET_KEY asli ke GitHub
+# Secrets untuk workflow ini. Kalau suatu saat ada langkah yang benar-benar
+# butuh database, pakai layanan Postgres sementara di dalam job, bukan
+# database bersama kita.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# PR yang di-push berkali-kali: batalkan run lama, jangan antre menumpuk.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Lint, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      # Nilai dummy — bentuknya valid, isinya tidak menuju ke mana pun.
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?pgbouncer=true
+      DIRECT_URL: postgresql://ci:ci@localhost:5432/ci
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-dummy.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: sb_publishable_ci_dummy
+      SUPABASE_SECRET_KEY: sb_secret_ci_dummy
+      CRON_SECRET: ci-dummy
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Siapkan pnpm
+        # Versinya diambil dari field "packageManager" di package.json,
+        # jadi tidak perlu disebut dua kali dan tidak bisa melenceng.
+        uses: pnpm/action-setup@v4
+
+      - name: Siapkan Node
+        uses: actions/setup-node@v4
+        with:
+          # Samakan dengan runtime Vercel, BUKAN dengan Node lokal Naufal (v26).
+          # Kalau target deploy berubah, ubah di sini juga.
+          node-version: 22
+          cache: pnpm
+
+      - name: Pasang dependency
+        # --frozen-lockfile: gagal kalau pnpm-lock.yaml tidak sinkron dengan
+        # package.json. Ini disengaja — lockfile yang berbeda antar mesin
+        # adalah sumber bug "jalan di laptopku" yang sulit dilacak.
+        run: pnpm install --frozen-lockfile
+
+      - name: Bangkitkan Prisma Client
+        # src/generated/prisma ada di .gitignore, jadi WAJIB dibangkitkan
+        # ulang di CI. Tanpa langkah ini, lint & build gagal dengan error
+        # tipe yang membingungkan. Perintah ini tidak menyentuh database.
+        run: pnpm prisma generate
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit test
+        # 4 berkas test logika murni (matching, health, experience, rate limit).
+        # Smoke test di scripts/ TIDAK ikut — semuanya menulis ke database
+        # bersama, tidak boleh dijalankan otomatis.
+        run: pnpm test
+
+      - name: Build produksi
+        run: pnpm build

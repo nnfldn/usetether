@@ -1,0 +1,589 @@
+// Skema data Tether — fondasi untuk seluruh modul (bukan bertahap per fase,
+// karena tenggat 9 hari tidak memungkinkan skema berubah-ubah di tengah kerja
+// paralel tim). Diturunkan dari Tether-Product-Blueprint-v2.pdf Bagian 09
+// (11 entity inti) + tambahan tabel pendukung yang wajib secara relasional
+// (join table, riwayat undangan, snapshot harian) tapi tidak menambah fitur
+// baru di luar 13 must-have MVP. Lihat ROADMAP.md untuk modul mana yang
+// memakai model yang mana.
+
+generator client {
+  provider   = "prisma-client"
+  output     = "../src/generated/prisma"
+  // Driver adapter (src/lib/prisma.ts pakai @prisma/adapter-pg), BUKAN
+  // engine binary native — dua percobaan sebelumnya (binaryTargets
+  // rhel-openssl-3.0.x, lalu outputFileTracingIncludes) GAGAL keduanya:
+  // Next.js 16 Turbopack tidak membundel file .so.node ke fungsi
+  // serverless meski build lokal & log generate terlihat sukses (baru
+  // ketahuan lewat login sungguhan di production, 15 Sep — dikonfirmasi
+  // isu yang sama di prisma/prisma#29339 untuk kombinasi persis ini:
+  // custom output + Next.js 16 Turbopack). Driver adapter memakai query
+  // compiler WASM di dalam @prisma/client sendiri, jadi tidak ada binary
+  // per-platform yang perlu ikut ter-bundle sama sekali. (previewFeatures
+  // driverAdapters TIDAK ditulis di sini — di Prisma 6.19.3 fiturnya
+  // sudah stabil, menulisnya cuma memicu warning "deprecated".)
+  //
+  // engineType = "client" WAJIB — tanpa ini, generator TETAP menghasilkan
+  // client yang mencoba load engine native di runtime terlepas dari
+  // adapter yang dioper ke constructor (persis error yang terus muncul
+  // sebelum baris ini ditambahkan). Ini opsi generator Prisma 6.x; di
+  // Prisma 7 engineType dihapus total karena jadi perilaku default.
+  engineType = "client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  // DATABASE_URL: connection pooled Supabase (port 6543), WAJIB ?pgbouncer=true
+  // di ujung URL-nya — tanpa itu Prisma bikin prepared statement yang tidak
+  // didukung Supavisor mode transaction, error "prepared statement s0 does
+  // not exist" persis saat banyak request bersamaan (mis. saat demo).
+  url       = env("DATABASE_URL")
+  // DIRECT_URL: koneksi langsung migrasi lewat SESSION POOLER (port 5432,
+  // host pooler yang sama, tanpa ?pgbouncer=true) — BUKAN db.[ref].supabase.co
+  // yang IPv6-only dan tidak reachable dari jaringan Indonesia pada umumnya.
+  // Diisi lewat prisma.config.ts, bukan langsung di sini — lihat file itu.
+  directUrl = env("DIRECT_URL")
+}
+
+// =========================================================
+// IDENTITAS & PROFIL — Modul Auth/Profile (Fase 1)
+// =========================================================
+
+/// id meniru UUID auth.users milik Supabase Auth, disinkronkan lewat trigger
+/// SQL "auth.users -> public.Profile" (lihat catatan setup di README/memori
+/// teknis). JANGAN pakai @default(uuid()) di sini — id harus sama persis
+/// dengan auth.users.id.
+model Profile {
+  id        String   @id
+  fullName  String
+  faculty   String?
+  bio       String?
+  /// Minat/topik bebas, sengaja disimpan sebagai array skalar (bukan tabel
+  /// katalog terpisah) — prinsip Blueprint: jaga jumlah entity tetap kecil.
+  interests String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  skills            ProfileSkill[]
+  availability      Availability[]
+  ownedProjects     Project[]         @relation("ProjectOwner")
+  teamMemberships   TeamMember[]
+  invitationsSent   TeamInvitation[]  @relation("InvitationActor")
+  ownedMilestones   Milestone[]       @relation("MilestoneOwner")
+  assignedTasks     Task[]            @relation("TaskAssignee")
+  activities        Activity[]
+  notifications     Notification[]
+  discussionPosts   DiscussionPost[]
+  discussionReplies DiscussionReply[]
+
+  progressUpdates   ProgressUpdate[]
+  endorsementsGiven SkillEndorsement[]
+  auditLogsActed    AuditLog[]         @relation("AuditActor")
+
+  auditLogsTargeted   AuditLog[]   @relation("AuditTarget")
+  peerRatingsGiven    PeerRating[] @relation("PeerRatingRater")
+  peerRatingsReceived PeerRating[] @relation("PeerRatingRated")
+
+  @@map("profiles")
+}
+
+/// Katalog skill bersama, dirujuk baik oleh ProfileSkill (skill yang dimiliki
+/// orang) maupun Requirement (skill yang dibutuhkan proyek).
+model Skill {
+  id       String  @id @default(uuid())
+  name     String  @unique
+  category String?
+
+  profileSkills ProfileSkill[]
+  requirements  Requirement[]
+
+  @@map("skills")
+}
+
+/// Bobot bukti skill sesuai Blueprint Bagian 08 — anti-gaming klaim skill
+/// sendiri. Nilai berjenjang, BUKAN dipilih bebas oleh pengguna:
+///   0.50 klaim mandiri · 0.65 +portofolio · 0.80 +endorsement rekan
+///   1.00 +proyek selesai di Tether
+/// Validasi nilai ini di lapisan logika (bukan cuma tipe data), karena
+/// kenaikan level hanya sah lewat aksi yang memang membuktikannya (unggah
+/// portofolio, endorsement dikonfirmasi rekan, proyek ditutup).
+model ProfileSkill {
+  id            String   @id @default(uuid())
+  profileId     String
+  skillId       String
+  evidenceLevel Float    @default(0.50)
+  portfolioUrl  String?
+  createdAt     DateTime @default(now())
+
+  profile      Profile            @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  skill        Skill              @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  endorsements SkillEndorsement[]
+
+  @@unique([profileId, skillId])
+  @@map("profile_skills")
+}
+
+/// Jenjang bukti 0.80 (Blueprint Bagian 08): endorsement dari REKAN SATU TIM
+/// (pernah/sedang jadi TeamMember aktif di proyek yang sama), bukan siapa
+/// pun — anti-gaming, dicek di lapisan logika (endorseSkillAction), bukan
+/// cuma di sini. Satu endorser cuma bisa endorse satu ProfileSkill sekali
+/// (@@unique) — endorsement berulang dari orang yang sama tidak menaikkan
+/// apa pun lagi, sesuai semangat "bukti nyata" bukan "suara terbanyak".
+model SkillEndorsement {
+  id             String   @id @default(uuid())
+  profileSkillId String
+  endorserId     String
+  createdAt      DateTime @default(now())
+
+  profileSkill ProfileSkill @relation(fields: [profileSkillId], references: [id], onDelete: Cascade)
+  endorser     Profile      @relation(fields: [endorserId], references: [id])
+
+  @@unique([profileSkillId, endorserId])
+  @@map("skill_endorsements")
+}
+
+enum AvailabilityBlock {
+  PAGI
+  SIANG
+  SORE
+  MALAM
+}
+
+/// Ketersediaan waktu = blok kasar (hari + rentang), BUKAN kalender detail —
+/// keputusan privasi eksplisit di Blueprint, bukan keterbatasan teknis.
+/// dayOfWeek: 0 = Minggu ... 6 = Sabtu, konsisten dengan konvensi Postgres.
+model Availability {
+  id        String            @id @default(uuid())
+  profileId String
+  dayOfWeek Int
+  block     AvailabilityBlock
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, dayOfWeek, block])
+  @@map("availabilities")
+}
+
+// =========================================================
+// PROYEK & KEBUTUHAN TIM — Modul Projects (Fase 2)
+// =========================================================
+
+enum ProjectVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  DORMANT
+  COMPLETED
+}
+
+model Project {
+  id                    String            @id @default(uuid())
+  ownerId               String
+  title                 String
+  goal                  String
+  /// tag_proyek pada rumus Interest (Blueprint Bagian 05) — dicocokkan
+  /// dengan Profile.interests. Bebas diisi owner saat membuat proyek.
+  tags                  String[]
+  deadline              DateTime?
+  /// Default PUBLIC: metadata proyek bisa ditemukan (keputusan #1 Lampiran
+  /// C), workspace di dalamnya (milestone/task/health) TETAP privat ke
+  /// anggota tim terlepas dari nilai ini — dijaga lewat RLS/pemeriksaan
+  /// keanggotaan, bukan oleh flag ini.
+  visibility            ProjectVisibility @default(PUBLIC)
+  status                ProjectStatus     @default(DRAFT)
+  /// Bobot komponen skor kecocokan (Blueprint Bagian 05: "bobot dapat
+  /// diubah oleh project owner", keputusan #6 Lampiran C). Default =
+  /// nilai Blueprint. JANGAN dipakai langsung untuk menghitung — selalu
+  /// lewat sanitizeWeights() di src/lib/matching/score.ts, yang menegakkan
+  /// cap anti-bias Experience 0.15 pada bobot akhir.
+  weightGapCoverage     Float             @default(0.35)
+  weightAvailability    Float             @default(0.20)
+  weightComplementarity Float             @default(0.15)
+  weightInterest        Float             @default(0.15)
+  weightExperience      Float             @default(0.15)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  owner           Profile          @relation("ProjectOwner", fields: [ownerId], references: [id])
+  requirements    Requirement[]
+  team            Team?
+  invitations     TeamInvitation[]
+  milestones      Milestone[]
+  activities      Activity[]
+  healthSnapshots HealthSnapshot[]
+  progressUpdates ProgressUpdate[]
+  notifications   Notification[]
+  auditLogs       AuditLog[]
+  peerRatings     PeerRating[]
+  discussionPosts DiscussionPost[]
+
+  @@map("projects")
+}
+
+/// r[j] pada rumus GapCoverage Blueprint Bagian 05 — tingkat kepentingan
+/// skill j bagi proyek, 0..1, ditetapkan owner saat membuat/mengubah proyek.
+model Requirement {
+  id         String @id @default(uuid())
+  projectId  String
+  skillId    String
+  importance Float
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  skill   Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, skillId])
+  @@map("requirements")
+}
+
+// =========================================================
+// KOMPOSISI TIM — Modul Matching/Team (Fase 3)
+// =========================================================
+
+/// Satu proyek punya paling banyak satu Team aktif (relasi 1:1 dengan
+/// Project). Dipisah dari Project sendiri karena entity ini yang jadi target
+/// perhitungan GapCoverage (t[j] = cakupan tim saat ini), bukan atribut
+/// proyek langsung.
+model Team {
+  id        String   @id @default(uuid())
+  projectId String   @unique
+  createdAt DateTime @default(now())
+
+  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  members TeamMember[]
+
+  @@map("teams")
+}
+
+enum TeamMemberStatus {
+  ACTIVE
+  LEFT
+}
+
+model TeamMember {
+  id        String           @id @default(uuid())
+  teamId    String
+  profileId String
+  role      String
+  status    TeamMemberStatus @default(ACTIVE)
+  joinedAt  DateTime         @default(now())
+  leftAt    DateTime?
+
+  team    Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id])
+
+  @@unique([teamId, profileId])
+  @@map("team_members")
+}
+
+enum InvitationDirection {
+  OWNER_INVITED
+  CANDIDATE_APPLIED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+/// Alur dua arah (keputusan #2 Lampiran C): owner mengundang ATAU kandidat
+/// melamar, tapi keanggotaan baru sah setelah kedua pihak setuju secara
+/// eksplisit (keputusan #3) — tidak pernah ada penambahan otomatis ke
+/// TeamMember tanpa lewat status ACCEPTED di sini terlebih dulu.
+model TeamInvitation {
+  id          String              @id @default(uuid())
+  projectId   String
+  profileId   String
+  direction   InvitationDirection
+  status      InvitationStatus    @default(PENDING)
+  createdAt   DateTime            @default(now())
+  respondedAt DateTime?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  profile Profile @relation("InvitationActor", fields: [profileId], references: [id])
+
+  @@map("team_invitations")
+}
+
+// =========================================================
+// RUANG KERJA — Modul Workspace (Fase 4)
+// =========================================================
+
+enum MilestoneStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  LATE
+}
+
+model Milestone {
+  id        String          @id @default(uuid())
+  projectId String
+  ownerId   String
+  title     String
+  deadline  DateTime
+  status    MilestoneStatus @default(TODO)
+  /// Bobot kepentingan milestone ini terhadap keseluruhan proyek — dipakai
+  /// perhitungan Forecast (Blueprint Bagian 07).
+  weight    Int             @default(1)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  owner   Profile @relation("MilestoneOwner", fields: [ownerId], references: [id])
+  tasks   Task[]
+
+  @@map("milestones")
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  /// Anti-gaming Blueprint Bagian 08 Masalah 2: "task selesai butuh
+  /// penanda kedua". Assignee menandai sampai sini sendiri; DONE
+  /// sungguhan cuma tercapai lewat confirmTaskAction oleh owner proyek
+  /// atau owner milestone (lihat workspace.ts) — bukan satu klik sendirian.
+  PENDING_CONFIRM
+  DONE
+}
+
+model Task {
+  id          String       @id @default(uuid())
+  milestoneId String
+  assigneeId  String?
+  title       String
+  priority    TaskPriority @default(MEDIUM)
+  status      TaskStatus   @default(TODO)
+  weight      Int          @default(1)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  milestone Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+  assignee  Profile?  @relation("TaskAssignee", fields: [assigneeId], references: [id])
+
+  @@map("tasks")
+}
+
+// =========================================================
+// AKTIVITAS & KESEHATAN PROYEK — Modul Health (Fase 5)
+// =========================================================
+
+/// Jenis peristiwa yang dihitung sebagai aktivitas bermakna (Blueprint
+/// Bagian 07 & 08). LOGIN SENGAJA TIDAK ADA DI SINI — anti-gaming Pulse
+/// ditegakkan oleh tipe data ini sendiri, bukan pengecekan terpisah.
+enum ActivityEventType {
+  MILESTONE_SELESAI // bobot 5
+  TASK_SELESAI // bobot 3
+  PROGRESS_UPDATE // bobot 2
+  FILE_COMMIT // bobot 2
+  DISKUSI_BERMAKNA // bobot 1
+}
+
+model Activity {
+  id        String            @id @default(uuid())
+  projectId String
+  actorId   String
+  eventType ActivityEventType
+  weight    Int
+  createdAt DateTime          @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actor   Profile @relation(fields: [actorId], references: [id])
+
+  // Cooldown/batas harian (anti-gaming Bagian 08) diperiksa di lapisan
+  // logika terhadap (projectId, actorId, eventType, createdAt), bukan lewat
+  // constraint database — aturannya bisa berubah (mis. jumlah per jam).
+  @@index([projectId, createdAt])
+  @@map("activities")
+}
+
+/// Fitur must-have #10 Blueprint ("progress update & activity log") —
+/// narasi singkat status proyek dari anggota tim, terpisah dari perubahan
+/// status milestone/task otomatis. Tiap update yang dibuat memicu SATU
+/// Activity(PROGRESS_UPDATE) lewat logThrottledActivity (lihat activity.ts)
+/// — cooldown 1 jam per anggota per proyek supaya spam update tidak
+/// menggelembungkan Pulse secara artifisial (anti-gaming Bagian 08), tapi
+/// teks update itu sendiri TETAP tersimpan penuh tanpa dibuang meski
+/// cooldown aktif, murni yang dibatasi cuma bobot aktivitas kesehatannya.
+model ProgressUpdate {
+  id        String   @id @default(uuid())
+  projectId String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author  Profile @relation(fields: [authorId], references: [id])
+
+  @@index([projectId, createdAt])
+  @@map("progress_updates")
+}
+
+/// Ruang diskusi ringkas per proyek (keputusan #9 Lampiran C: "diskusi
+/// ringkas per proyek; tanpa sistem percakapan lengkap di versi awal" —
+/// BUKAN chat native, sengaja tanpa reply/thread/reaction). Tiap komentar
+/// memicu SATU Activity(DISKUSI_BERMAKNA) lewat logThrottledActivity, pola
+/// yang sama persis dengan ProgressUpdate.
+
+/// Satu baris per proyek per hari, ditulis oleh cron harian (Vercel Cron,
+/// modul Health Fase 5). Persisten, bukan dihitung ulang tiap request —
+/// itulah kenapa disebut "snapshot" di Blueprint.
+
+/// untuk mencegah spamming aktivitas.
+
+/// Diskusi asinkron per proyek (Blueprint Bagian 07).
+/// Berbeda dari Comment lama, diskusi ini mendukung thread satu tingkat
+/// (Post -> Reply) dan TIDAK menyumbang ke skor Project Health (Pulse)
+/// untuk mencegah spamming aktivitas.
+model DiscussionPost {
+  id        String   @id @default(uuid())
+  projectId String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  author  Profile           @relation(fields: [authorId], references: [id])
+  replies DiscussionReply[]
+
+  @@index([projectId, createdAt])
+  @@map("discussion_posts")
+}
+
+model DiscussionReply {
+  id        String   @id @default(uuid())
+  postId    String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  post   DiscussionPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author Profile        @relation(fields: [authorId], references: [id])
+
+  @@index([postId, createdAt])
+  @@map("discussion_replies")
+}
+
+model HealthSnapshot {
+  id           String   @id @default(uuid())
+  projectId    String
+  snapshotDate DateTime @db.Date
+  pulse        Float
+  momentum     Float
+  balance      Float
+  forecast     Float
+  composite    Float
+  computedAt   DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, snapshotDate])
+  @@map("health_snapshots")
+}
+
+// =========================================================
+// NOTIFIKASI — lintas modul
+// =========================================================
+
+enum NotificationType {
+  INVITATION
+  HEALTH_ALERT
+  MILESTONE_DEADLINE
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  profileId String
+  type      NotificationType
+  message   String
+  /// Proyek yang relevan (kalau ada) — dipakai UI buat link "lihat proyek"
+  /// langsung dari notifikasi, bukan cuma teks tanpa tujuan.
+  projectId String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  profile Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, readAt])
+  @@map("notifications")
+}
+
+// =========================================================
+// AUDIT LOG — checklist keamanan Blueprint Bagian 09:
+// "Audit log untuk perubahan keanggotaan dan kepemilikan proyek"
+// =========================================================
+
+enum AuditAction {
+  TEAM_MEMBER_JOINED
+  TEAM_MEMBER_LEFT
+}
+
+/// actorId = siapa yang MELAKUKAN aksi (bisa beda dari targetProfileId,
+/// mis. owner yang menerima lamaran kandidat lain). Append-only, tidak
+/// pernah di-update/delete — itulah kenapa disebut "audit" log.
+model AuditLog {
+  id              String      @id @default(uuid())
+  projectId       String
+  actorId         String
+  targetProfileId String
+  action          AuditAction
+  createdAt       DateTime    @default(now())
+
+  project       Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  actor         Profile @relation("AuditActor", fields: [actorId], references: [id])
+  targetProfile Profile @relation("AuditTarget", fields: [targetProfileId], references: [id])
+
+  @@index([projectId, createdAt])
+  @@map("audit_logs")
+}
+
+/// Penilaian antar anggota tim setelah proyek ditutup — mengisi komponen
+/// peer_rating_norm (bobot 0.3) pada rumus Experience Blueprint Bagian 08,
+/// satu-satunya komponen yang sebelumnya netral permanen karena fiturnya
+/// belum ada.
+///
+/// KEPUTUSAN PRIVASI (Lampiran C #11 "tanpa peringkat publik"): penilaian
+/// bersifat TERTUTUP. Yang dinilai tidak pernah melihat siapa memberi nilai
+/// berapa — hanya agregat, dan hanya setelah ambang MIN_PEER_RATERS
+/// tercapai (lihat src/lib/matching/experience.ts). Tidak ada papan
+/// peringkat antar pengguna di mana pun.
+model PeerRating {
+  id        String @id @default(uuid())
+  projectId String
+  raterId   String
+  ratedId   String
+
+  /// Tiga dimensi, skala 1..5. Dibatasi juga di sisi aplikasi (zod) —
+  /// CHECK constraint ditambahkan di migrasi supaya nilai di luar rentang
+  /// tidak bisa masuk lewat jalur mana pun, termasuk SQL langsung.
+  timeliness    Int
+  quality       Int
+  communication Int
+
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  rater   Profile @relation("PeerRatingRater", fields: [raterId], references: [id])
+  rated   Profile @relation("PeerRatingRated", fields: [ratedId], references: [id])
+
+  /// Satu penilaian per pasangan per proyek — pagar anti-gaming paling
+  /// dasar: tidak bisa menilai orang yang sama berkali-kali di satu proyek
+  /// untuk menggeser rata-ratanya.
+  @@unique([projectId, raterId, ratedId])
+  /// Query utama: "semua penilaian yang DITERIMA orang ini" saat menghitung
+  /// Experience di halaman Tim.
+  @@index([ratedId])
+  @@map("peer_ratings")
+}
