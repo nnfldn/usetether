@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signUpAction, type AuthActionState } from "@/app/actions/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -8,7 +9,14 @@ import { ThemeToggle } from "@/components/theme-toggle";
 const initialState: AuthActionState = { error: null };
 
 export default function SignUpPage() {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(signUpAction, initialState);
+
+  // router.push, bukan redirect() dari server — halaman statis + basePath
+  // produksi, lihat catatan di AuthActionState.redirectTo (actions/auth.ts).
+  useEffect(() => {
+    if (state.redirectTo) router.push(state.redirectTo);
+  }, [state.redirectTo, router]);
 
   return (
     <main className="min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-10 bg-background">

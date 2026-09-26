@@ -1,14 +1,26 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { signInAction, type AuthActionState } from "@/app/actions/auth";
+import { signInAction, demoSignInAction, type AuthActionState } from "@/app/actions/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 const initialState: AuthActionState = { error: null };
 
 export default function SignInPage() {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(signInAction, initialState);
+  const [demoState, demoAction, demoPending] = useActionState(demoSignInAction, initialState);
+
+  // router.push, bukan redirect() dari server: di halaman statis (login, daftar,
+  // demo) Server Action menjawab 303 dengan Location apa adanya sehingga
+  // basePath produksi hilang, sedangkan router di browser tahu soal basePath.
+  // Catatan lengkap di AuthActionState.redirectTo (actions/auth.ts).
+  useEffect(() => {
+    const target = state.redirectTo ?? demoState.redirectTo;
+    if (target) router.push(target);
+  }, [state.redirectTo, demoState.redirectTo, router]);
 
   return (
     <main className="min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-10 bg-background">
@@ -134,7 +146,22 @@ export default function SignInPage() {
             </button>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-outline/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          <div className="mt-6 pt-6 border-t border-outline/40">
+            <form action={demoAction} className="flex flex-col gap-2">
+              <button
+                type="submit"
+                disabled={demoPending}
+                className="rounded-none border border-outline bg-surface px-4 py-3 text-xs font-bold uppercase tracking-wider text-on-surface hover:border-primary hover:text-primary disabled:opacity-50 transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                {demoPending ? "Menyiapkan demo…" : "Coba Demo Tanpa Daftar →"}
+              </button>
+              {demoState.error && (
+                <p className="text-[11px] text-error" role="alert">{demoState.error}</p>
+              )}
+            </form>
+          </div>
+
+          <div className="mt-6 pt-6 border-t border-outline/40 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
             <span className="text-on-surface-variant">Belum memiliki akun Tether?</span>
             <Link
               href="/sign-up"

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { appPath } from "@/lib/app-path";
 
 // Tujuan link email reset sandi (lihat requestPasswordResetAction). Route
 // Handler — BUKAN Server Component — karena exchangeCodeForSession perlu
@@ -16,9 +17,9 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+      return NextResponse.redirect(`${origin}${appPath(next)}`);
     }
   }
 
-  return NextResponse.redirect(`${origin}/sign-in?error=link-tidak-valid`);
+  return NextResponse.redirect(`${origin}${appPath("/sign-in")}?error=link-tidak-valid`);
 }

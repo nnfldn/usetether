@@ -15,6 +15,7 @@ import {
 } from "../src/lib/health/score";
 import type { ActivityEventType } from "../src/generated/prisma/client";
 import { wibCalendarDate } from "../src/lib/date";
+import { seedDemoData } from "../src/lib/demo";
 
 // Akun owner utama (bisa dialihkan via SEED_OWNER_ID untuk pengujian)
 const OWNER_ID = process.env.SEED_OWNER_ID ?? "41a68f64-c51f-4510-8e3e-6c6dbb216ade";
@@ -1306,8 +1307,10 @@ async function main() {
   await resetCandidateEvidence(candidateIds);
   await clearPreviousSeedProjects();
   await seedAll50Projects(skillIdByName, candidateIds);
+  await seedDemoData();
 
   console.log("\nAkun uji: format <nama>.<marga>@tether.test, password: admin123");
+  console.log("Akun demo publik: demo@tether.test, password: admin123");
   console.log("Akun utama Naufal otomatis bergabung di beberapa proyek aktif (buka /work untuk melihat Work Grid).");
 }
 

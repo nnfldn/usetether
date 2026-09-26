@@ -1,13 +1,21 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { updatePasswordAction, type AuthActionState } from "@/app/actions/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 const initialState: AuthActionState = { error: null };
 
 export default function ResetPasswordPage() {
+  const router = useRouter();
   const [state, formAction, pending] = useActionState(updatePasswordAction, initialState);
+
+  // router.push, bukan redirect() dari server — halaman statis + basePath
+  // produksi, lihat catatan di AuthActionState.redirectTo (actions/auth.ts).
+  useEffect(() => {
+    if (state.redirectTo) router.push(state.redirectTo);
+  }, [state.redirectTo, router]);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center gap-6 px-6">
